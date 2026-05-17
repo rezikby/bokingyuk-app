@@ -69,14 +69,14 @@ class AuthController extends Controller
         try {
             $result = $this->authService->googleCallback();
 
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-
-            return redirect($frontendUrl . '/login?access_token=' . $result['token']);
-
+            return redirect()->away(
+                env('FRONTEND_URL') . '/login?access_token=' . $result['token']
+            );
         } catch (\Exception $e) {
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
 
-            return redirect($frontendUrl . '/login?error=google_failed');
+            return redirect()->away(
+                env('FRONTEND_URL') . '/login?error=google_failed'
+            );
         }
     }
 }
