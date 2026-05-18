@@ -26,10 +26,10 @@ class DatabaseSeeder extends Seeder
 
         // ── Admin default ─────────────────────────────────────────────────────
         User::firstOrCreate(
-            ['email' => 'admin@gmail.com'],
+            ['email' => 'reziadmin@gmail.com'],
             [
                 'name'            => 'Admin BokinYuk',
-                'password'        => Hash::make('Admin@12345'),
+                'password'        => Hash::make('230107Rezi'),
                 'phone'           => '081234567890',
                 'whatsapp_number' => '081234567890',
                 'role'            => 'admin',
