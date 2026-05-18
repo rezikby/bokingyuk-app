@@ -25,17 +25,17 @@ class DatabaseSeeder extends Seeder
         );
 
         // ── Admin default ─────────────────────────────────────────────────────
-        // User::firstOrCreate(
-        //     ['email' => 'admin@bokingyuk.com'],
-        //     [
-        //         'name'            => 'Admin BokinYuk',
-        //         'password'        => Hash::make('Admin@12345'),
-        //         'phone'           => '081234567890',
-        //         'whatsapp_number' => '081234567890',
-        //         'role'            => 'admin',
-        //         'is_active'       => true,
-        //     ]
-        // );
+        User::firstOrCreate(
+            ['email' => 'admin@gmail.com'],
+            [
+                'name'            => 'Admin BokinYuk',
+                'password'        => Hash::make('Admin@12345'),
+                'phone'           => '081234567890',
+                'whatsapp_number' => '081234567890',
+                'role'            => 'admin',
+                'is_active'       => true,
+            ]
+        );
 
         // ── Customer demo ─────────────────────────────────────────────────────
         // User::firstOrCreate(

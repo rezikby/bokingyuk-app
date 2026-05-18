@@ -24,25 +24,15 @@ class BookingService
         private readonly PaymentService $paymentService,
         private readonly WhatsAppService $whatsAppService,
         private readonly MaintenanceService $maintenanceService,
+        private readonly NotificationService $notificationService,
     ) {}
 
-    /**
-     * FIX #2 — findByIdOrFail() agar null-pointer tidak bisa terjadi
-     * secara diam-diam. Exception FieldNotFoundException akan di-catch
-     * di controller dan dikembalikan sebagai 404.
-     *
-     * FIX #7 — calculateDuration() sekarang validasi durasi minimum 1 jam
-     * sebelum berlanjut ke DB transaction.
-     */
     public function createBooking(User $user, array $data): Booking
     {
-        // Lempar FieldNotFoundException jika field tidak ada (bukan null-pointer)
         $field = $this->fieldRepo->findByIdOrFail($data['field_id']);
 
-        // Validasi durasi sebelum cek konflik agar pesan error lebih jelas
         $duration = $this->calculateDuration($data['start_time'], $data['end_time']);
 
-        // FIX FITUR — cek overlap dengan booking aktif manapun, termasuk milik user sendiri
         $this->ensureNoConflict(
             $data['field_id'],
             $data['booking_date'],
@@ -50,7 +40,6 @@ class BookingService
             $data['end_time'],
         );
 
-        // Cek apakah slot terhalang jadwal maintenance
         $this->ensureNoMaintenance(
             $data['field_id'],
             $data['booking_date'],
@@ -60,7 +49,7 @@ class BookingService
 
         $totalPrice = $field->price_per_hour * $duration;
 
-        return DB::transaction(function () use ($user, $data, $duration, $totalPrice) {
+        return DB::transaction(function () use ($user, $data, $duration, $totalPrice, $field) {
             $booking = $this->bookingRepo->create([
                 'user_id'        => $user->id,
                 'field_id'       => $data['field_id'],
@@ -75,6 +64,27 @@ class BookingService
             ]);
 
             $this->paymentService->initiate($booking);
+
+            // Notifikasi ke USER: booking berhasil dibuat
+            $this->notificationService->notifyBookingCreated($booking);
+
+            // Notifikasi ke ADMIN lapangan: ada booking baru masuk
+            if ($field->admin_id) {
+                $this->notificationService->send(
+                    $field->admin_id,
+                    'booking',
+                    '📋 Booking Baru Masuk!',
+                    "Booking {$booking->booking_code} dari {$user->name} untuk lapangan {$field->name} pada " .
+                        Carbon::parse($data['booking_date'])->format('d M Y') .
+                        " pukul {$data['start_time']}–{$data['end_time']}. Menunggu pembayaran.",
+                    [
+                        'booking_code' => $booking->booking_code,
+                        'booking_id'   => $booking->id,
+                        'user_name'    => $user->name,
+                        'field_name'   => $field->name,
+                    ]
+                );
+            }
 
             Log::info('Booking created', [
                 'booking_code' => $booking->booking_code,
@@ -103,6 +113,7 @@ class BookingService
         ]);
 
         $this->whatsAppService->sendCheckInConfirmation($booking);
+        $this->notificationService->notifyCheckIn($booking);
 
         return $booking->load(['user', 'field']);
     }
@@ -125,6 +136,7 @@ class BookingService
             }
 
             $this->whatsAppService->sendCancellationNotice($updated);
+            $this->notificationService->notifyBookingCancelled($updated);
 
             return $updated;
         });
@@ -163,14 +175,6 @@ class BookingService
         }
     }
 
-    /**
-     * Normalisasi waktu ke format H:i.
-     *
-     * FIX DATETIME — handle semua kemungkinan format:
-     *   "2026-05-12 14:00:00" → "14:00"
-     *   "14:00:00"            → "14:00"
-     *   "14:00"               → "14:00"
-     */
     private function normalizeTime(string $time): string
     {
         if (str_contains($time, ' ')) {
@@ -180,12 +184,6 @@ class BookingService
         return substr($time, 0, 5);
     }
 
-    /**
-     * FIX FITUR — pakai isSlotBooked() di repository yang menggunakan
-     * query overlap standar (start < end AND end > start).
-     * Ini mencegah user memesan lapangan yang sudah dipesan user lain
-     * maupun dirinya sendiri pada slot yang sama.
-     */
     private function ensureNoConflict(int $fieldId, string $date, string $start, string $end): void
     {
         $hasConflict = $this->bookingRepo->isSlotBooked(
@@ -202,10 +200,6 @@ class BookingService
         }
     }
 
-    /**
-     * FIX #7 — validasi durasi minimum 1 jam.
-     * Mencegah booking dengan start == end atau end sebelum start.
-     */
     private function calculateDuration(string $start, string $end): int
     {
         $duration = (int) Carbon::parse($start)->diffInHours(Carbon::parse($end));

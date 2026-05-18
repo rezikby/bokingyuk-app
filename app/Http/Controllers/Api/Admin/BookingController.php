@@ -9,6 +9,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BookingResource;
 use App\Repositories\Interfaces\BookingRepositoryInterface;
 use App\Services\BookingService;
+use App\Services\NotificationService;
+use App\Services\PaymentService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,13 +22,14 @@ class BookingController extends Controller
     public function __construct(
         private readonly BookingService $bookingService,
         private readonly BookingRepositoryInterface $bookingRepo,
+        private readonly NotificationService $notificationService,
+        private readonly PaymentService $paymentService,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
         $filters = $request->only(['status', 'field_id', 'date', 'search', 'per_page']);
 
-        // Admin hanya melihat booking dari field miliknya
         $filters['admin_id'] = auth()->id();
 
         $bookings = $this->bookingRepo->getAllPaginated($filters);
@@ -42,7 +45,6 @@ class BookingController extends Controller
             return $this->notFound('Booking tidak ditemukan.');
         }
 
-        // Pastikan booking ini dari field milik admin
         if ($booking->field?->admin_id !== auth()->id()) {
             return $this->forbidden('Anda tidak memiliki akses ke booking ini.');
         }
@@ -62,7 +64,6 @@ class BookingController extends Controller
         try {
             $booking = $this->bookingService->checkIn($token);
 
-            // Verifikasi ownership
             if ($booking->field?->admin_id !== auth()->id()) {
                 return $this->forbidden('Anda tidak dapat check-in booking lapangan admin lain.');
             }
@@ -96,6 +97,7 @@ class BookingController extends Controller
 
     /**
      * Konfirmasi pembayaran manual oleh admin.
+     * Juga dipakai oleh frontend polling otomatis saat Midtrans berhasil.
      */
     public function confirmPayment(string $code): JsonResponse
     {
@@ -128,6 +130,23 @@ class BookingController extends Controller
                 'paid_at' => now(),
             ]);
         }
+
+        $booking->load(['field', 'user', 'payment']);
+
+        // Notifikasi ke USER: pembayaran dikonfirmasi
+        $this->notificationService->notifyPaymentSuccess($booking);
+
+        // Notifikasi ke ADMIN: konfirmasi berhasil (untuk update live di halaman admin lain)
+        $this->notificationService->send(
+            auth()->id(),
+            'payment',
+            '✅ Pembayaran Dikonfirmasi',
+            "Booking {$booking->booking_code} dari {$booking->user->name} berhasil dikonfirmasi lunas.",
+            [
+                'booking_code' => $booking->booking_code,
+                'booking_id'   => $booking->id,
+            ]
+        );
 
         return $this->success(
             new BookingResource($booking->fresh(['field', 'user', 'payment'])),

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\SuperAdmin;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\Mobile\CheckInController as MobileCheckInController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\Admin\NotificationController as AdminNotificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -229,6 +230,27 @@ Route::prefix('v1')
             Route::get('booking/{bookingCode}', [
                 Customer\PaymentHistoryController::class,
                 'byBooking'
+            ]);
+        });
+
+
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [
+                Admin\NotificationController::class,
+                'index'
+            ]);
+            Route::get('unread-count', [
+                Admin\NotificationController::class,
+                'unreadCount'
+            ]);
+            Route::patch('{id}/read', [
+                Admin\NotificationController::class,
+                'markAsRead'
+            ]);
+            Route::patch('read-all', [
+                Admin\NotificationController::class,
+                'markAllAsRead'
             ]);
         });
 
