@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\SuperAdmin;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\Mobile\CheckInController as MobileCheckInController;
 use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\Admin\NotificationController as AdminNotificationController;
+use App\Http\Controllers\Api\Admin\SyncPaymentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,15 +19,14 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
 
     Route::post('register', [AuthController::class, 'register']);
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login',    [AuthController::class, 'login']);
 
-    // Google OAuth
-    Route::get('google', [AuthController::class, 'googleRedirect']);
+    Route::get('google',          [AuthController::class, 'googleRedirect']);
     Route::get('google/callback', [AuthController::class, 'googleCallback']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('me', [AuthController::class, 'me']);
+        Route::get('me',      [AuthController::class, 'me']);
     });
 });
 
@@ -51,12 +50,12 @@ Route::prefix('mobile')->group(function () {
 
     Route::get('checkin/{qr_token}', [
         MobileCheckInController::class,
-        'checkInByUrl'
+        'checkInByUrl',
     ])->name('mobile.checkin');
 
     Route::get('booking/{qr_token}', [
         MobileCheckInController::class,
-        'bookingInfo'
+        'bookingInfo',
     ])->name('mobile.booking.info');
 });
 
@@ -71,239 +70,235 @@ Route::prefix('v1')
     ->group(function () {
 
         /*
-    |--------------------------------------------------------------------------
-    | PROFILE
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | PROFILE
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('profile')->group(function () {
 
             Route::put('/', [
                 ProfileController::class,
-                'update'
+                'update',
             ]);
 
             Route::post('avatar', [
                 ProfileController::class,
-                'uploadAvatar'
+                'uploadAvatar',
             ]);
 
             Route::put('change-password', [
                 ProfileController::class,
-                'changePassword'
+                'changePassword',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - FIELDS
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - FIELDS
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('fields')->group(function () {
 
             Route::get('/', [
                 Customer\FieldController::class,
-                'index'
+                'index',
             ]);
 
             Route::get('{id}', [
                 Customer\FieldController::class,
-                'show'
+                'show',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - BOOKINGS
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - BOOKINGS
+        |
+        | PENTING: Route statis WAJIB sebelum route dinamis {code}
+        | agar Laravel tidak menangkap "available-slots" atau
+        | "check-payment" sebagai nilai {code}.
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('bookings')->group(function () {
 
             Route::get('/', [
                 Customer\BookingController::class,
-                'index'
+                'index',
             ]);
 
             Route::post('/', [
                 Customer\BookingController::class,
-                'store'
+                'store',
             ]);
+
+            // ── Statis (harus SEBELUM {code}) ────────────────────────────────
 
             Route::get('available-slots', [
                 Customer\BookingController::class,
-                'availableSlots'
+                'availableSlots',
             ]);
+
+            // ← BARU: Customer cek status bayar langsung ke Midtrans.
+            //   Dipanggil Payment.jsx setiap 3 detik.
+            //   Backend cek ke Midtrans & auto-confirm jika lunas —
+            //   tidak perlu admin online.
+            Route::get('{code}/check-payment', [
+                Customer\BookingController::class,
+                'checkPaymentStatus',
+            ]);
+
+            // ── Dinamis ({code}) ──────────────────────────────────────────────
 
             Route::get('{code}', [
                 Customer\BookingController::class,
-                'show'
+                'show',
             ]);
 
             Route::patch('{code}/cancel', [
                 Customer\BookingController::class,
-                'cancel'
+                'cancel',
             ]);
 
             Route::post('{code}/refresh-payment-token', [
                 Customer\BookingController::class,
-                'refreshPaymentToken'
+                'refreshPaymentToken',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - ADMIN REQUESTS
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - ADMIN REQUESTS
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('admin-requests')->group(function () {
 
             Route::get('/', [
                 Customer\AdminRequestController::class,
-                'index'
+                'index',
             ]);
 
             Route::get('{id}', [
                 Customer\AdminRequestController::class,
-                'show'
+                'show',
             ]);
 
             Route::post('/', [
                 Customer\AdminRequestController::class,
-                'store'
+                'store',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - PENGADUAN
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - PENGADUAN
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('pengaduan')->group(function () {
 
             Route::get('/', [
                 Customer\PengaduanController::class,
-                'index'
+                'index',
             ]);
 
             Route::get('{id}', [
                 Customer\PengaduanController::class,
-                'show'
+                'show',
             ]);
 
             Route::post('/', [
                 Customer\PengaduanController::class,
-                'store'
+                'store',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - ACTIVITY LOGS
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - ACTIVITY LOGS
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('user')->group(function () {
 
             Route::get('activity-logs', [
                 Customer\ActivityLogController::class,
-                'index'
+                'index',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - PAYMENT HISTORY
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - PAYMENT HISTORY
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('payment-history')->group(function () {
 
             Route::get('/', [
                 Customer\PaymentHistoryController::class,
-                'index'
+                'index',
             ]);
 
             Route::get('booking/{bookingCode}', [
                 Customer\PaymentHistoryController::class,
-                'byBooking'
-            ]);
-        });
-
-
-
-        Route::prefix('notifications')->group(function () {
-            Route::get('/', [
-                Admin\NotificationController::class,
-                'index'
-            ]);
-            Route::get('unread-count', [
-                Admin\NotificationController::class,
-                'unreadCount'
-            ]);
-            Route::patch('{id}/read', [
-                Admin\NotificationController::class,
-                'markAsRead'
-            ]);
-            Route::patch('read-all', [
-                Admin\NotificationController::class,
-                'markAllAsRead'
+                'byBooking',
             ]);
         });
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - RATINGS
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | CUSTOMER - NOTIFICATIONS
+        |----------------------------------------------------------------------
+        */
+
+        Route::prefix('notifications')->group(function () {
+
+            Route::get('/', [
+                Customer\NotificationController::class,
+                'index',
+            ]);
+
+            Route::get('unread-count', [
+                Customer\NotificationController::class,
+                'unreadCount',
+            ]);
+
+            Route::patch('read-all', [
+                Customer\NotificationController::class,
+                'markAllAsRead',
+            ]);
+
+            Route::patch('{id}/read', [
+                Customer\NotificationController::class,
+                'markAsRead',
+            ]);
+        });
+
+        /*
+        |----------------------------------------------------------------------
+        | CUSTOMER - RATINGS
+        |----------------------------------------------------------------------
+        */
 
         Route::get('fields/{fieldId}/ratings', [
             Customer\RatingController::class,
-            'index'
+            'index',
         ]);
 
         Route::post('bookings/{bookingCode}/rating', [
             Customer\RatingController::class,
-            'store'
+            'store',
         ]);
 
         /*
-    |--------------------------------------------------------------------------
-    | CUSTOMER - NOTIFICATIONS
-    |--------------------------------------------------------------------------
-    */
-
-        Route::prefix('notifications')->group(function () {
-
-            Route::get('/', [
-                Customer\NotificationController::class,
-                'index'
-            ]);
-
-            Route::get('unread-count', [
-                Customer\NotificationController::class,
-                'unreadCount'
-            ]);
-
-            Route::patch('read-all', [
-                Customer\NotificationController::class,
-                'markAllAsRead'
-            ]);
-
-            Route::patch('{id}/read', [
-                Customer\NotificationController::class,
-                'markAsRead'
-            ]);
-        });
-
-        /*
-    |--------------------------------------------------------------------------
-    | ADMIN
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | ADMIN
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('admin')
             ->middleware('admin')
@@ -311,7 +306,7 @@ Route::prefix('v1')
 
                 Route::get('dashboard', [
                     Admin\DashboardController::class,
-                    'stats'
+                    'stats',
                 ]);
 
                 Route::apiResource('fields', Admin\FieldController::class);
@@ -320,27 +315,55 @@ Route::prefix('v1')
 
                     Route::get('/', [
                         Admin\BookingController::class,
-                        'index'
+                        'index',
                     ]);
 
-                    Route::get('{code}', [
-                        Admin\BookingController::class,
-                        'show'
+                    Route::get('sync-payments', [
+                        SyncPaymentController::class,
+                        'sync',
                     ]);
 
                     Route::post('check-in', [
                         Admin\BookingController::class,
-                        'checkIn'
+                        'checkIn',
+                    ]);
+
+                    Route::get('{code}', [
+                        Admin\BookingController::class,
+                        'show',
                     ]);
 
                     Route::patch('{code}/cancel', [
                         Admin\BookingController::class,
-                        'cancel'
+                        'cancel',
                     ]);
 
                     Route::patch('{code}/confirm-payment', [
                         Admin\BookingController::class,
-                        'confirmPayment'
+                        'confirmPayment',
+                    ]);
+                });
+
+                Route::prefix('notifications')->group(function () {
+
+                    Route::get('/', [
+                        Admin\NotificationController::class,
+                        'index',
+                    ]);
+
+                    Route::get('unread-count', [
+                        Admin\NotificationController::class,
+                        'unreadCount',
+                    ]);
+
+                    Route::patch('read-all', [
+                        Admin\NotificationController::class,
+                        'markAllAsRead',
+                    ]);
+
+                    Route::patch('{id}/read', [
+                        Admin\NotificationController::class,
+                        'markAsRead',
                     ]);
                 });
 
@@ -348,12 +371,12 @@ Route::prefix('v1')
 
                     Route::get('revenue', [
                         Admin\ReportController::class,
-                        'revenue'
+                        'revenue',
                     ]);
 
                     Route::get('predict-busy-hours/{fieldId}', [
                         Admin\ReportController::class,
-                        'predictBusyHours'
+                        'predictBusyHours',
                     ]);
                 });
 
@@ -361,12 +384,12 @@ Route::prefix('v1')
 
                     Route::get('/', [
                         Admin\PaymentHistoryController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::get('booking/{id}', [
                         Admin\PaymentHistoryController::class,
-                        'byBooking'
+                        'byBooking',
                     ]);
                 });
 
@@ -374,12 +397,12 @@ Route::prefix('v1')
 
                     Route::get('/', [
                         Admin\RatingController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::patch('{id}/toggle-visibility', [
                         Admin\RatingController::class,
-                        'toggleVisibility'
+                        'toggleVisibility',
                     ]);
                 });
 
@@ -387,32 +410,32 @@ Route::prefix('v1')
 
                     Route::delete('bulk-delete', [
                         Admin\MaintenanceController::class,
-                        'bulkDelete'
+                        'bulkDelete',
                     ]);
 
                     Route::get('/', [
                         Admin\MaintenanceController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::post('/', [
                         Admin\MaintenanceController::class,
-                        'store'
+                        'store',
                     ]);
 
                     Route::get('{id}', [
                         Admin\MaintenanceController::class,
-                        'show'
+                        'show',
                     ]);
 
                     Route::put('{id}', [
                         Admin\MaintenanceController::class,
-                        'update'
+                        'update',
                     ]);
 
                     Route::patch('{id}/cancel', [
                         Admin\MaintenanceController::class,
-                        'cancel'
+                        'cancel',
                     ]);
                 });
 
@@ -420,31 +443,31 @@ Route::prefix('v1')
 
                     Route::get('revenue', [
                         Admin\ExportController::class,
-                        'revenue'
+                        'revenue',
                     ]);
 
                     Route::get('daily-summary', [
                         Admin\ExportController::class,
-                        'dailySummary'
+                        'dailySummary',
                     ]);
 
                     Route::get('field-report', [
                         Admin\ExportController::class,
-                        'fieldReport'
+                        'fieldReport',
                     ]);
 
                     Route::get('customers', [
                         Admin\ExportController::class,
-                        'customers'
+                        'customers',
                     ]);
                 });
             });
 
         /*
-    |--------------------------------------------------------------------------
-    | SUPER ADMIN
-    |--------------------------------------------------------------------------
-    */
+        |----------------------------------------------------------------------
+        | SUPER ADMIN
+        |----------------------------------------------------------------------
+        */
 
         Route::prefix('super-admin')
             ->middleware('super_admin')
@@ -452,178 +475,148 @@ Route::prefix('v1')
 
                 Route::get('dashboard', [
                     SuperAdmin\DashboardController::class,
-                    'stats'
+                    'stats',
                 ]);
 
                 Route::get('bookings', [
                     SuperAdmin\BookingController::class,
-                    'index'
+                    'index',
                 ]);
 
                 Route::get('transactions', [
                     SuperAdmin\TransactionController::class,
-                    'index'
+                    'index',
                 ]);
-
-                /*
-        |--------------------------------------------------------------------------
-        | PENGADUAN
-        |--------------------------------------------------------------------------
-        */
 
                 Route::post('pengaduan/bulk-delete', [
                     SuperAdmin\PengaduanController::class,
-                    'bulkDelete'
+                    'bulkDelete',
                 ]);
 
                 Route::get('pengaduan', [
                     SuperAdmin\PengaduanController::class,
-                    'index'
+                    'index',
                 ]);
 
                 Route::patch('pengaduan/{id}', [
                     SuperAdmin\PengaduanController::class,
-                    'update'
+                    'update',
                 ]);
 
                 Route::delete('pengaduan/{id}', [
                     SuperAdmin\PengaduanController::class,
-                    'destroy'
+                    'destroy',
                 ]);
-
-                /*
-        |--------------------------------------------------------------------------
-        | USER MANAGEMENT
-        |--------------------------------------------------------------------------
-        */
 
                 Route::prefix('users')->group(function () {
 
                     Route::get('/', [
                         SuperAdmin\UserManagementController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::post('/', [
                         SuperAdmin\UserManagementController::class,
-                        'store'
+                        'store',
                     ]);
 
                     Route::get('{id}', [
                         SuperAdmin\UserManagementController::class,
-                        'show'
+                        'show',
                     ]);
 
                     Route::put('{id}', [
                         SuperAdmin\UserManagementController::class,
-                        'update'
+                        'update',
                     ]);
 
                     Route::delete('{id}', [
                         SuperAdmin\UserManagementController::class,
-                        'destroy'
+                        'destroy',
                     ]);
 
                     Route::patch('{id}/toggle-active', [
                         SuperAdmin\UserManagementController::class,
-                        'toggleActive'
+                        'toggleActive',
                     ]);
                 });
-
-                /*
-        |--------------------------------------------------------------------------
-        | ADMIN REQUESTS
-        |--------------------------------------------------------------------------
-        */
 
                 Route::prefix('admin-requests')->group(function () {
 
                     Route::post('bulk-delete', [
                         SuperAdmin\AdminRequestController::class,
-                        'bulkDelete'
+                        'bulkDelete',
                     ]);
 
                     Route::get('/', [
                         SuperAdmin\AdminRequestController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::get('{id}', [
                         SuperAdmin\AdminRequestController::class,
-                        'show'
+                        'show',
                     ]);
 
                     Route::post('{id}/accept', [
                         SuperAdmin\AdminRequestController::class,
-                        'accept'
+                        'accept',
                     ]);
 
                     Route::post('{id}/reject', [
                         SuperAdmin\AdminRequestController::class,
-                        'reject'
+                        'reject',
                     ]);
 
                     Route::delete('{id}', [
                         SuperAdmin\AdminRequestController::class,
-                        'destroy'
+                        'destroy',
                     ]);
                 });
-
-                /*
-        |--------------------------------------------------------------------------
-        | AUDIT LOGS
-        |--------------------------------------------------------------------------
-        */
 
                 Route::prefix('audit-logs')->group(function () {
 
                     Route::get('/', [
                         SuperAdmin\AuditLogController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::get('summary', [
                         SuperAdmin\AuditLogController::class,
-                        'summary'
+                        'summary',
                     ]);
 
                     Route::get('model/{type}/{id}', [
                         SuperAdmin\AuditLogController::class,
-                        'byModel'
+                        'byModel',
                     ]);
 
                     Route::delete('prune', [
                         SuperAdmin\AuditLogController::class,
-                        'prune'
+                        'prune',
                     ]);
                 });
-
-                /*
-        |--------------------------------------------------------------------------
-        | SITE SETTINGS
-        |--------------------------------------------------------------------------
-        */
 
                 Route::prefix('settings')->group(function () {
 
                     Route::get('/', [
                         SuperAdmin\SiteSettingController::class,
-                        'index'
+                        'index',
                     ]);
 
                     Route::put('/', [
                         SuperAdmin\SiteSettingController::class,
-                        'updateMany'
+                        'updateMany',
                     ]);
 
                     Route::get('{group}', [
                         SuperAdmin\SiteSettingController::class,
-                        'byGroup'
+                        'byGroup',
                     ]);
 
                     Route::patch('{key}', [
                         SuperAdmin\SiteSettingController::class,
-                        'update'
+                        'update',
                     ]);
                 });
             });

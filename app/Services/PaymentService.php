@@ -27,6 +27,9 @@ class PaymentService
      */
     public function initiate(Booking $booking): Payment
     {
+        // FIX: buat order_id dengan format yang konsisten dan simpan ke DB
+        $orderId = $booking->booking_code . '-' . time();
+
         // Jika server key kosong, langsung simpan tanpa hit Midtrans
         if (empty($this->serverKey)) {
             Log::warning('MIDTRANS_SERVER_KEY belum diset di .env', [
@@ -36,18 +39,19 @@ class PaymentService
             return Payment::updateOrCreate(
                 ['booking_id' => $booking->id],
                 [
-                    'amount'     => $booking->total_price,
-                    'status'     => PaymentStatus::Unpaid->value,
-                    'snap_token' => null,
-                    'payment_url'=> null,
-                    'expired_at' => now()->addHours(24),
+                    'amount'             => $booking->total_price,
+                    'status'             => PaymentStatus::Unpaid->value,
+                    'snap_token'         => null,
+                    'payment_url'        => null,
+                    'midtrans_order_id'  => $orderId, // ← simpan meski tanpa hit Midtrans
+                    'expired_at'         => now()->addHours(24),
                 ]
             );
         }
 
         $payload = [
             'transaction_details' => [
-                'order_id'     => $booking->booking_code . '-' . time(),
+                'order_id'     => $orderId,
                 'gross_amount' => (int) $booking->total_price,
             ],
             'customer_details' => [
@@ -82,11 +86,12 @@ class PaymentService
                 return Payment::updateOrCreate(
                     ['booking_id' => $booking->id],
                     [
-                        'amount'     => $booking->total_price,
-                        'status'     => PaymentStatus::Unpaid->value,
-                        'snap_token' => null,
-                        'payment_url'=> null,
-                        'expired_at' => now()->addHours(24),
+                        'amount'             => $booking->total_price,
+                        'status'             => PaymentStatus::Unpaid->value,
+                        'snap_token'         => null,
+                        'payment_url'        => null,
+                        'midtrans_order_id'  => $orderId, // ← tetap simpan
+                        'expired_at'         => now()->addHours(24),
                     ]
                 );
             }
@@ -94,11 +99,12 @@ class PaymentService
             return Payment::updateOrCreate(
                 ['booking_id' => $booking->id],
                 [
-                    'amount'      => $booking->total_price,
-                    'status'      => PaymentStatus::Unpaid->value,
-                    'snap_token'  => $body['token'] ?? null,
-                    'payment_url' => $body['redirect_url'] ?? null,
-                    'expired_at'  => now()->addHour(),
+                    'amount'             => $booking->total_price,
+                    'status'             => PaymentStatus::Unpaid->value,
+                    'snap_token'         => $body['token'] ?? null,
+                    'payment_url'        => $body['redirect_url'] ?? null,
+                    'midtrans_order_id'  => $orderId, // ← simpan order_id yang terkirim ke Midtrans
+                    'expired_at'         => now()->addHour(),
                 ]
             );
 
@@ -111,11 +117,12 @@ class PaymentService
             return Payment::updateOrCreate(
                 ['booking_id' => $booking->id],
                 [
-                    'amount'     => $booking->total_price,
-                    'status'     => PaymentStatus::Unpaid->value,
-                    'snap_token' => null,
-                    'payment_url'=> null,
-                    'expired_at' => now()->addHours(24),
+                    'amount'             => $booking->total_price,
+                    'status'             => PaymentStatus::Unpaid->value,
+                    'snap_token'         => null,
+                    'payment_url'        => null,
+                    'midtrans_order_id'  => $orderId, // ← tetap simpan
+                    'expired_at'         => now()->addHours(24),
                 ]
             );
         }
@@ -206,7 +213,7 @@ class PaymentService
         }
     }
 
-    private function resolveStatus(string $transactionStatus, ?string $fraudStatus): PaymentStatus
+    public function resolveStatus(string $transactionStatus, ?string $fraudStatus): PaymentStatus
     {
         if ($transactionStatus === 'capture') {
             return $fraudStatus === 'accept' ? PaymentStatus::Paid : PaymentStatus::Unpaid;

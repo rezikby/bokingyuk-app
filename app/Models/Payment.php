@@ -22,6 +22,7 @@ class Payment extends Model
         'expired_at',
         'snap_token',
         'payment_url',
+        'midtrans_order_id', 
     ];
 
     protected $casts = [
