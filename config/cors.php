@@ -14,7 +14,6 @@ return [
 
     'allowed_origins' => [
         'https://rezi.yopaaa.xyz',
-        'http://localhost:3000',
         env('FRONTEND_URL', ''),
     ],
 
