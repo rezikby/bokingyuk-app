@@ -71,6 +71,11 @@ class AuthService
 
         $user = User::where('google_id', $googleUser->getId())->first();
 
+        // Validasi hanya @gmail.com
+        if (! str_ends_with(strtolower($googleUser->getEmail()), '@gmail.com')) {
+            throw new AuthenticationException('Hanya akun Gmail (@gmail.com) yang diizinkan.');
+        }
+
         if (! $user) {
             $user = User::where('email', $googleUser->getEmail())->first();
 

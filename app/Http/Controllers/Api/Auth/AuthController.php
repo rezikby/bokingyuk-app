@@ -73,9 +73,9 @@ class AuthController extends Controller
                 env('FRONTEND_URL') . '/login?access_token=' . $result['token']
             );
         } catch (\Exception $e) {
-
+            $msg = urlencode($e->getMessage());
             return redirect()->away(
-                env('FRONTEND_URL') . '/login?error=google_failed'
+                env('FRONTEND_URL') . '/login?error=google_failed&message=' . $msg
             );
         }
     }
