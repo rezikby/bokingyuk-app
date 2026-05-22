@@ -69,12 +69,12 @@ class AuthController extends Controller
         try {
             $result = $this->authService->googleCallback();
             return redirect()->away(
-                config('app.frontend_url') . '/login?access_token=' . $result['token']
+                'https://rezi.yopaaa.xyz/login?access_token=' . $result['token']
             );
         } catch (\Exception $e) {
             $msg = urlencode($e->getMessage());
             return redirect()->away(
-                config('app.frontend_url') . '/login?error=google_failed&message=' . $msg
+                'https://rezi.yopaaa.xyz/login?error=google_failed&message=' . $msg
             );
         }
     }
