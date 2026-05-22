@@ -36,16 +36,25 @@ class FieldRepository implements FieldRepositoryInterface
      */
     public function getAllPaginated(array $filters = []): LengthAwarePaginator
     {
+        $perPage = isset($filters['per_page'])
+            ? (int) $filters['per_page']
+            : 100; 
+
         return $this->model
-            ->when(isset($filters['admin_id']), fn($q) => $q->where('admin_id', $filters['admin_id']))
-            ->when(isset($filters['type']), fn($q) => $q->where('type', $filters['type']))
-            ->when(
-                array_key_exists('is_active', $filters),
-                fn($q) => $q->where('is_active', (bool) $filters['is_active'])
-            )
-            ->when(isset($filters['search']), fn($q) => $q->where('name', 'like', "%{$filters['search']}%"))
+            ->when(isset($filters['admin_id']), function ($q) use ($filters) {
+                $q->where('admin_id', $filters['admin_id']);
+            })
+            ->when(isset($filters['type']), function ($q) use ($filters) {
+                $q->where('type', $filters['type']);
+            })
+            ->when(array_key_exists('is_active', $filters), function ($q) use ($filters) {
+                $q->where('is_active', (bool) $filters['is_active']);
+            })
+            ->when(isset($filters['search']), function ($q) use ($filters) {
+                $q->where('name', 'like', '%' . $filters['search'] . '%');
+            })
             ->latest()
-            ->paginate($filters['per_page'] ?? 15);
+            ->paginate($perPage);
     }
 
     public function getActive(int $limit = 100): Collection
